@@ -18,6 +18,7 @@ def PA1(user_reviews_csv,products_csv):
     reviews = dd.read_csv(user_reviews_csv)
 
     # Q1
+    #Get percentage of missing values for all columns in the reviews table and the products table
     q1_reviews = reviews.isna().mean().compute().round(4) * 100
     q1_products = products.isna().mean().compute().round(4) * 100
 
@@ -35,6 +36,7 @@ def PA1(user_reviews_csv,products_csv):
     bag1 = {}
 
     # Q2
+    #Find pearson correlation value between the price and ratings
     subproducts = products[['asin', 'price']]
     subreviews = reviews[['asin', 'overall']]
 
@@ -44,10 +46,12 @@ def PA1(user_reviews_csv,products_csv):
     bag1['q2'] = joined.corr()['overall']
 
     # Q3
+    # Get mean, standard deviation, median, min, and max for the price column in the products table
     price_prod = products['price'].describe()
     bag1['q3'] = price_prod
 
     # Q4
+    #Get number of products for each super-category (the first entry in the “categories” column in the products table).
     def get_supercat(x):
         if isinstance(x, float):
             return x
@@ -64,6 +68,7 @@ def PA1(user_reviews_csv,products_csv):
 
 
     # Q5
+    #Check (Return 1 or 0) if there are any dangling references to the product ids from the reviews table to products table. Return 1 if there are dangling references.
     subR = reviews[['asin']]
     subP = products[["asin"]]
     subP["temp"] = 1
@@ -73,6 +78,7 @@ def PA1(user_reviews_csv,products_csv):
 
 
     # Q6
+    #Check (1 or 0) if there is any dangling reference between product ids in the related column and “asin” of the product table. Return 1 if there are dangling references.
     def g(ser):
         lst = []
         def parse(related):

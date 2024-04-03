@@ -48,15 +48,17 @@ def task_1(data_io, review_data, product_data):
 
     # ---------------------- Your implementation begins------------------------
     groups = review_data.groupby("asin")
-    
+
+    #aggrigate reviews by product id to get mean rating and number of ratings
     newRev = groups.agg(
         F.avg("overall").alias("meanRating"),
         F.count("overall").alias("countRating")
     )
 
-    
+    #add rating and number of ratings to product data  
     newPrd = product_data.join(newRev, "asin", "left").select("asin", "meanRating", "countRating")
     
+    #rename and set null values to the catagory average
     vals = newPrd.select(
                         F.count("asin").alias("count_total"),
                         F.mean("meanRating").alias("mean_meanRating"), 
@@ -108,6 +110,7 @@ def task_2(data_io, product_data):
 
     # ---------------------- Your implementation begins------------------------
     
+    #flatten categories and salesRank
     flat_data = product_data.withColumn(
             "category", 
             F.when(
@@ -122,7 +125,7 @@ def task_2(data_io, product_data):
             F.map_values(product_data["salesRank"]).getItem(0)
         ).select('asin', 'category', 'salesRank', 'bestSalesCategory', 'bestSalesRank')
     
-
+    #output data for validatation 
     vals = flat_data.select(
         F.count("asin").alias("count_total"),
         F.mean("bestSalesRank").alias("mean_bestSalesRank"), 
@@ -170,6 +173,7 @@ def task_3(data_io, product_data):
 
     # ---------------------- Your implementation begins------------------------
     
+    #get products also viewed by users viewing said product
     also_viewed = product_data.select(
         product_data['asin'],
         product_data["related"].getItem('also_viewed').alias('also_viewed'),
@@ -179,22 +183,26 @@ def task_3(data_io, product_data):
         ).otherwise(None).alias('countAlsoViewed')
     )
 
+    #seperate alsoviewed inty list
     exploded_vals = also_viewed.withColumn(
         "exp_vals",
         F.explode(F.col('also_viewed'))
     ).select('asin', 'exp_vals')
 #     exploded_vals.show(10)
     
+    #get prices for products alsoviewed
     prices = product_data.select(F.col('asin').alias('pasin'), 'price').filter(F.col('price').isNotNull())
 #     prices.show(10)
 
     exp_prices = prices.join(exploded_vals,prices.pasin == exploded_vals.exp_vals,'left')
 #     exp_prices.show(10)
     
+    #get mean price of eached alsoviewed catagory 
     merged_prices = exp_prices.groupby('asin').agg(
         F.mean('price').alias('meanPriceAlsoViewed')
     )
 #     merged_prices.show(10)
+    #add mean alsoviewed prices to alsoviewed 
     outcome = also_viewed.join(merged_prices, on = 'asin', how = 'left')
 #     outcome.show(10)
     
@@ -255,6 +263,7 @@ def task_4(data_io, product_data):
         F.expr('percentile_approx(price, 0.5)').alias('median')
     ).collect()[0]
     
+    #just price data, impute null values as mean price and median price and name untitled enteries unknown
     price_data = price.select(
         'asin',
         F.when(
@@ -321,10 +330,11 @@ def task_5(data_io, product_processed_data, word_0, word_1, word_2):
 
     splf = F.udf(lambda row: row.lower())
 
+    #transform title into split strings
     product_processed_data_output = product_processed_data.withColumn(titleArray_column, 
                                         F.split(splf(title_column), " "))
 
-    
+    #apply word2vec feature to processed data
     word2Vec = M.feature.Word2Vec(minCount=100, vectorSize=16, seed=SEED, numPartitions=4, inputCol=titleArray_column, outputCol=titleVector_column)
     
     model = word2Vec.fit(product_processed_data_output.select(F.col(titleArray_column)))
@@ -423,6 +433,8 @@ def task_6(data_io, product_processed_data):
 def task_7(data_io, train_data, test_data):
     
     # ---------------------- Your implementation begins------------------------
+    
+    #DecisionTreeRegressor to depth 5
     dt = M.regression.DecisionTreeRegressor(maxDepth=5, featuresCol="features", labelCol="overall")
     
     model = dt.fit(train_data)
@@ -433,6 +445,7 @@ def task_7(data_io, train_data, test_data):
     
     MSE = result.select(F.mean(F.col("SE"))).collect()[0][0]
     
+    #compute Error metric
     RMSE = math.sqrt(MSE)
     
     # -------------------------------------------------------------------------
@@ -457,16 +470,17 @@ def task_8(data_io, train_data, test_data):
     
     # ---------------------- Your implementation begins------------------------
     train, valid = train_data.randomSplit([.75, .25], SEED)
-    
+
+    #train model to depth     
     def trainDTR(depth, train):
         dt = M.regression.DecisionTreeRegressor(maxDepth=depth, featuresCol="features", labelCol="overall")
     
         model = dt.fit(train_data)
         
         return model
-        
+
+    #compute rmse for model
     def rmseDTR(model, data):
-    
         result = model.transform(data)
     
         result = result.withColumn('SE', F.pow(F.col("overall") - F.col("prediction"), 2))
@@ -477,19 +491,23 @@ def task_8(data_io, train_data, test_data):
         
         return RMSE
     
+    #decision tree 5 depth 
     m5 = trainDTR(5, train)
     rmse5 = rmseDTR(m5, valid)
     
+    #decision tree 7 depth 
     m7 = trainDTR(7, train)
     rmse7 = rmseDTR(m7, valid)
     
+    #decision tree 9 depth 
     m9 = trainDTR(9, train)
     rmse9 = rmseDTR(m9, valid)
     
+    #decision tree 12 depth 
     m12 = trainDTR(12, train)
     rmse12 = rmseDTR(m12, valid)
     
-    
+    #best accuracy 
     rmse = rmseDTR(m5, test_data)
     
     
